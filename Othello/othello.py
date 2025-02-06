@@ -1,6 +1,8 @@
 import numpy as np
 import copy
 CHANGE = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [-1, 1], [1, 1]]
+HUMAN = 0
+AB = 1
 
 class Othello:
     def __init__(self, color):
@@ -53,7 +55,7 @@ class Othello:
         if len(total_flips) > 0:
             
             # Update locations lists
-            self.locations[player].update(move)
+            self.locations[player].add(move)
             self.locations[player].update(total_flips)
             self.locations[abs(player - 1)] -= total_flips
             
@@ -70,14 +72,13 @@ class Othello:
             self.make_move(player, self.get_user_input())
             return
             
-    def has_won(self):
-        return len(self.white_locations) + len(self.black_locations) == 64
+    
  
-    def possible_moves(self, player):
-        list_of_possible_moves = {}
+    def possible_moves(self, player, locations):
+        list_of_possible_moves = set()
         opp_locations = None
         # Can only put a white down adjacent / diagonal to a black piece
-        opp_locations = self.locations[abs(player - 1)].copy()
+        opp_locations = locations[abs(player - 1)].copy()
         for location in opp_locations:
             above = (location[0] - 1, location[1])
             below = (location[0] + 1, location[1])
@@ -92,8 +93,21 @@ class Othello:
                                 upper_right_diag, lower_right_diag,
                                 upper_left_diag, lower_left_diag]
             for move in potential_moves:
-                if (self.board[move[0]][move[1]] == '' and move[0] < 8 and move[1] < 8):
-                    list_of_possible_moves.add(move)
+                if (self.board[move[0]][move[1]] == '' and move[0] < 8 and move[1] < 8
+                    and move[0] >= 0 and move[1] >= 0):
+                    total_flips = self.flip((move), locations, player)
+                    
+                    # Flips are possible
+                    if len(total_flips) > 0:
+                        # # Update locations lists
+                        # locations[player].update(move)
+                        # locations[player].update(total_flips)
+                        # locations[abs(player - 1)] -= total_flips
+                        
+                        # # Update the board representation
+                        # self.board[move[0]][move[1]] = self.color[player]
+                        # # FIX THIS to return updated locations based on the current move we are trying from possible moves.
+                        list_of_possible_moves.add(move)
         return list_of_possible_moves
     
     def flip(self, move, locations, curr_player): #move = (row, col), locations, 0/1 return list of locations flipped
@@ -148,64 +162,67 @@ class Othello:
     def print_board(self):
         print(self.board)
     
-    def get_board(self):
-        return copy.deepcopy(self)
+    def get_locations(self):
+        return copy.deepcopy(self.locations)
 
 class AlphaBeta:
-    def __init__(self, player, max_depth=3):
-        self.player = player
+    def __init__(self, game, max_depth=3):
         self.max_depth = max_depth
-        self.piece_scores = np.array([[1, 0, 1],
-        [0, 2, 0],
-        [1, 0, 1]])
+        self.game = game
 
+    def game_over(self, locations, winner):
+        if len(locations[0]) + len(locations[1]) == 64:
+            winner = HUMAN if len(locations[0]) > len(locations[1]) else AB
+            return True
+    
     def find_best_move(self, game):
-        game_copy = game.get_board()
+        # copy of locations
+        locations_copy = game.get_locations()
         best_score = -np.inf
         best_move = None
-        for move in game_copy.possible_moves(self.player):
-            score = self.min_player(self.update_board(board_copy, move), best_score, np.inf, 1)
+        for move in game.possible_moves(AB, locations_copy):
+            score = self.min_player(self.update_board(locations_copy, AB, move), best_score, np.inf, 1)
             if score > best_score:
                 best_score = score
                 best_move = move
         game.make_move(best_move)
 
-    def min_player(self, game, board, alpha, beta, depth):
-        if game.has_won(board, self.player): return 10
-        elif game.has_won(board, -self.player): return -10
-        elif depth == self.max_depth: return np.sum(self.player * board * self.piece_scores)
+    def min_player(self, locations, alpha, beta, depth):
+        winner = -1
+        if self.game_over(locations, winner):
+            return 100 if winner == HUMAN else -100
+        elif depth == self.max_depth: return len(locations[0])
         score = np.inf
         # need to fix this possible moves call because it won't work on the updated board 
-        for move in game.possible_moves(board, -self.player):
-            score = min(score, self.max_player(update_board(board, move), alpha, beta, depth+1))
+        for move in self.game.possible_moves(HUMAN, locations): 
+            score = min(score, self.max_player(self.update_board(locations, HUMAN, move), alpha, beta, depth+1))
             beta = min(beta, score)
             if score <= alpha: break
         return score
 
-    def max_player(self, board, alpha, beta, depth):
-        if has_won(board, self.player): return 10
-        elif has_won(board, -self.player): return -10
-        elif depth == self.max_depth: return np.sum(self.player * board * self.piece_scores)
+    def max_player(self, locations, alpha, beta, depth):
+        winner = -1
+        if self.game_over(locations, winner) :
+            return 100 if winner == AB else -100        
+        elif depth == self.max_depth: return len(locations[1])
         score = -np.inf
-        for move in possible_moves(board, self.player):
-            score = max(score, self.max_player(update_board(board, move), alpha, beta, depth+1))
+        for move in self.game.possible_moves(AB, locations): 
+            score = max(score, self.max_player(self.update_board(locations, AB, move), alpha, beta, depth+1))
             alpha = max(alpha, score)
             if score >= beta: break
         return score
     
-    def update_board(self, game_copy, player, row, col): # Used to calculate the utility of a move
-        potential_move = (row, col)
-        total_flips = game_copy.flip(potential_move, game_copy.locations, player)
-        # Flips are possible
-        if len(total_flips) > 0:
-            # Update locations lists
-            game_copy.locations[player].update(potential_move)
-            game_copy.locations[player].update(total_flips)
-            game_copy.locations[abs(player - 1)] -= total_flips
-            
-            # Update the board representation
-            game_copy.board[row][col] = game_copy.color[player]
-            # FIX THIS to return updated locations based on the current move we are trying from possible moves.
+    def update_board(self, locations, player, move_to_simulate): # Used to calculate the utility of a move
+        locations_copy = copy.deepcopy(locations)
+        # "Make that move" and flip pieces that that move outflanks
+        # Update locations lists
+        total_flips = self.game.flip(move_to_simulate, locations_copy, player)
+        locations_copy[player].update(move_to_simulate)
+        locations_copy(total_flips)
+        locations_copy[abs(player - 1)] -= total_flips
+        return locations_copy
+
+        
 
     
 def main():   
@@ -228,22 +245,23 @@ def main():
     # 0 as human player
     # 1 as computer
     if op == "B":
-        curr_player = 0
+        curr_player = HUMAN
         print("You chose Black.")
     else:
-        curr_player = 1
+        curr_player = AB
         print("You chose White.")
 
     # TODO while game not done
     for _ in range(5):
         if curr_player == 0:
-            game.make_move(op, game.get_user_input())
+            game.make_move(HUMAN, game.get_user_input())
 
             curr_player = 1
         else:
             # make computer move
             curr_player = 0
             comp.find_best_move(game)
+        game.print_board()
             
     
 
