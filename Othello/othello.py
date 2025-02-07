@@ -1,6 +1,6 @@
 import numpy as np
 import copy
-CHANGE = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [-1, 1], [1, 1]]
+CHANGE = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]
 HUMAN = 0
 AB = 1
 
@@ -21,6 +21,27 @@ class Othello:
         self.white_locations = set([(3, 3), (4, 4)])
         self.black_locations = set([(3, 4), (4, 3)])
 
+        # self.white_locations = set([
+        #     (1,0), (1,3), (1,4), (1, 6), (1,7), 
+        #     (2,0), (2,6), (2,7),
+        #     (3,2), (3,3), (3,5), (3,6), (3,7),
+        #     (4,3), (4,4), (4,6), (4,7),
+        #     (5,1), (5,2), (5,3), (5,5), (5,6), (5,7),
+        #     (6,1), (6,2), (6,4), (6,5), (6,6), (6,7),
+        #     (7,1), (7,2), (7,3), (7,4), (7,5), (7,6), (7,7)
+        # ])
+
+        # self.black_locations = set([
+        #     (0,0),(0, 1), (0, 2), (0,3), (0,4), (0,5),
+        #     (1, 1), (1,2), (1,5),
+        #     (2, 1), (2,2), (2,3), (2,4), (2,5),
+        #     (3,0), (3,1), (3,4),
+        #     (4,0), (4,1), (4,2), (4,5),
+        #     (5, 0), (5,4),
+        #     (6,0), (6,3),
+        #     (7,0)
+        # ])
+
         # List of two sets
         if color == "B": # color = the color that the human player chose
             self.locations = [self.black_locations, self.white_locations]
@@ -34,8 +55,14 @@ class Othello:
         # self.black_locations = {(3, 3), (4, 4), (4, 2)}
 
     def get_user_input(self):
+        print("If you want to pass, enter 'P'.")
         row = input("Row: ").strip()
+        if row.upper() == 'P':
+            return None
+        
         col = input("Column: ").strip()
+        if col.upper() == 'P':
+            return None
         
         while (not row.isdigit()    # check if input is a digit
             or not col.isdigit()
@@ -51,6 +78,8 @@ class Othello:
         return (int(row), int(col))
 
     def make_move(self, player, move): # To actually change the board
+        if move == None:
+            return
         row, col = move
         total_flips = self.flip((row, col), self.locations, player)
         # Flips are possible
@@ -68,8 +97,10 @@ class Othello:
             self.board[row][col] = self.color[player]
             return
         
+        
         else:
             #invalid do again
+            print("Invalid move.")
             self.make_move(player, self.get_user_input())
             return
             
@@ -94,8 +125,9 @@ class Othello:
                                 upper_right_diag, lower_right_diag,
                                 upper_left_diag, lower_left_diag]
             for move in potential_moves:
-                if (self.board[move[0]][move[1]] == '' and move[0] < 8 and move[1] < 8
-                    and move[0] >= 0 and move[1] >= 0):
+                if (move[0] < 8 and move[1] < 8
+                    and move[0] >= 0 and move[1] >= 0
+                    and self.board[move[0]][move[1]] == "▢"):
                     total_flips = self.flip((move), locations, player)
                     
                     # Flips are possible
@@ -127,7 +159,7 @@ class Othello:
         #check diagonal
         self.check(row-1, col-1, locations, curr_player, op_player, total, 4)
         self.check(row-1, col+1, locations, curr_player, op_player, total, 5)
-        self.check(row-1, col-1, locations, curr_player, op_player, total, 6)
+        self.check(row+1, col-1, locations, curr_player, op_player, total, 6)
         self.check(row+1, col+1, locations, curr_player, op_player, total, 7)
 
         return total
@@ -171,10 +203,10 @@ class AlphaBeta:
         self.max_depth = max_depth
         self.game = game
 
-    def game_over(self, locations, winner):
+    def game_over(self, locations):
         if len(locations[0]) + len(locations[1]) == 64:
-            winner = HUMAN if len(locations[0]) > len(locations[1]) else AB
-            return True
+            return HUMAN if len(locations[0]) > len(locations[1]) else AB        
+        return -1
     
     def find_best_move(self, game):
         # copy of locations
@@ -186,11 +218,12 @@ class AlphaBeta:
             if score > best_score:
                 best_score = score
                 best_move = move
+        print("Best move:", best_move)
         game.make_move(AB, best_move)
 
     def min_player(self, locations, alpha, beta, depth):
-        winner = -1
-        if self.game_over(locations, winner):
+        winner = self.game_over(locations)
+        if winner != -1:
             return 100 if winner == HUMAN else -100
         elif depth == self.max_depth: return len(locations[0])
         score = np.inf
@@ -202,9 +235,9 @@ class AlphaBeta:
         return score
 
     def max_player(self, locations, alpha, beta, depth):
-        winner = -1
-        if self.game_over(locations, winner) :
-            return 100 if winner == AB else -100        
+        winner = self.game_over(locations)
+        if winner != -1:
+            return 100 if winner == HUMAN else -100        
         elif depth == self.max_depth: return len(locations[1])
         score = -np.inf
         for move in self.game.possible_moves(AB, locations): 
@@ -253,7 +286,8 @@ def main():
         print("You chose White.")
 
     # TODO while game not done
-    for _ in range(5):
+    winner = comp.game_over(game.locations)
+    while winner == -1:
         if curr_player == 0:
             game.make_move(HUMAN, game.get_user_input())
 
@@ -262,8 +296,14 @@ def main():
             # make computer move
             curr_player = 0
             comp.find_best_move(game)
+        winner = comp.game_over(game.locations)
         game.print_board()
-            
+    if (winner  == HUMAN):
+        print("You won!")
+    elif (winner == AB):
+        print("Computer won!")
+    else:
+        print("Tie!")     
     
 
 if __name__ == '__main__': 
