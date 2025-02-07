@@ -8,6 +8,9 @@ class Othello:
     def __init__(self, color):
         # Initialize the starting state of the board itself
         self.board = np.zeros((8, 8), dtype=str)
+        for row in range (len(self.board)):
+            for col in range (len(self.board[0])):
+                self.board[row][col] = "▢"
         self.board[3][3] = "W"
         self.board[3][4] = "B"
         self.board[4][3] = "B"
@@ -15,8 +18,8 @@ class Othello:
 
         # Lists to keep track of the locations of black/white pieces, to be updated 
         # and used to compute possible moves
-        self.white_locations = {(3, 3), (4, 4)}
-        self.black_locations = {(3, 4), (4, 3)}
+        self.white_locations = set([(3, 3), (4, 4)])
+        self.black_locations = set([(3, 4), (4, 3)])
 
         # List of two sets
         if color == "B": # color = the color that the human player chose
@@ -49,7 +52,6 @@ class Othello:
 
     def make_move(self, player, move): # To actually change the board
         row, col = move
-        
         total_flips = self.flip((row, col), self.locations, player)
         # Flips are possible
         if len(total_flips) > 0:
@@ -60,10 +62,9 @@ class Othello:
             self.locations[abs(player - 1)] -= total_flips
             
             # Update the board representation
-            for fliped in total_flips:
-                row, col = fliped
-                self.board[row][col] = self.color[player]
-
+            for flipped in total_flips:
+                flip_row, flip_col = flipped
+                self.board[flip_row][flip_col] = self.color[player]
             self.board[row][col] = self.color[player]
             return
         
@@ -138,19 +139,19 @@ class Othello:
         while (0 <= row < 8) and (0 <= col < 8):
             # if same piece found, if no op piece found - break, else add possible flips to total - break
             if (row, col) in locations[curr_player]:
-                print("Same piece found in ", row, col)
+                # print("Same piece found in ", row, col)
                 if counter > 0:
-                    print(counter, " flipped")
+                    # print(counter, " flipped")
                     total.update(possible_flips)
                 break
             # if different piece found - add location to possible flips
             elif (row, col) in locations[op_player]:
-                print("Opponenet piece found in ", row, col)
+                # print("Opponenet piece found in ", row, col)
                 possible_flips.add((row, col))
                 counter += 1
             # if empty - break
             else:
-                print("No more.")
+                # print("No more.")
                 possible_flips.clear()
                 break
             # iterate
@@ -185,7 +186,7 @@ class AlphaBeta:
             if score > best_score:
                 best_score = score
                 best_move = move
-        game.make_move(best_move)
+        game.make_move(AB, best_move)
 
     def min_player(self, locations, alpha, beta, depth):
         winner = -1
@@ -217,8 +218,8 @@ class AlphaBeta:
         # "Make that move" and flip pieces that that move outflanks
         # Update locations lists
         total_flips = self.game.flip(move_to_simulate, locations_copy, player)
-        locations_copy[player].update(move_to_simulate)
-        locations_copy(total_flips)
+        locations_copy[player].add(move_to_simulate)
+        locations_copy[player].update(total_flips)
         locations_copy[abs(player - 1)] -= total_flips
         return locations_copy
 
@@ -238,7 +239,7 @@ def main():
     game = Othello(op)
     game.print_board()
 
-    comp = AlphaBeta()
+    comp = AlphaBeta(game)
     
     # Play game
 
