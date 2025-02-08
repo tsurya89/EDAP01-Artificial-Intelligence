@@ -1,5 +1,6 @@
 import numpy as np
 import copy
+import time
 CHANGE = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]
 HUMAN = 0
 AB = 1
@@ -104,7 +105,6 @@ class Othello:
             self.make_move(player, self.get_user_input())
             return
             
-    
  
     def possible_moves(self, player, locations):
         list_of_possible_moves = set()
@@ -207,7 +207,8 @@ class AlphaBeta:
         if len(locations[0]) + len(locations[1]) == 64:
             return HUMAN if len(locations[0]) > len(locations[1]) else AB        
         return -1
-    
+    # ***** Start of use of minimax algorithm with alpha-beta pruning *****
+    # (find_best_move, min_player, max_player)
     def find_best_move(self, game):
         # copy of locations
         locations_copy = game.get_locations()
@@ -215,6 +216,7 @@ class AlphaBeta:
         best_move = None
         for move in game.possible_moves(AB, locations_copy):
             score = self.min_player(self.update_board(locations_copy, AB, move), best_score, np.inf, 1)
+            print(move, score)
             if score > best_score:
                 best_score = score
                 best_move = move
@@ -255,9 +257,6 @@ class AlphaBeta:
         locations_copy[player].update(total_flips)
         locations_copy[abs(player - 1)] -= total_flips
         return locations_copy
-
-        
-
     
 def main():   
     
@@ -266,16 +265,38 @@ def main():
     # Validate input as B or W
     while op not in "BW":
         op = input("Choose colour, ’B’ for black, ’W’ for white: ").upper()
-        
+    
+    time_limit = input("Time limit in seconds: ")
+    try:
+        time_limit = float(time_limit)
+    except ValueError:
+        time_limit = input("Time limit in seconds: ")
+
+    time_limit = float(time_limit)
+    depth = 1
+    if time_limit <= 0.001:
+        depth = 1
+    elif time_limit <= 0.01:
+        depth = 2
+    elif time_limit <= 0.1:
+        depth = 3
+    elif time_limit <= 0.5:
+        depth = 4
+    elif time_limit <= 1:
+        depth = 5
+    elif time_limit <= 10:
+        depth = 6
+    elif time_limit <= 30:
+        depth = 7
+    print("DEPTH", depth)
     # Black always goes first
 
     game = Othello(op)
     game.print_board()
 
-    comp = AlphaBeta(game)
+    comp = AlphaBeta(game, depth)
     
     # Play game
-
     # 0 as human player
     # 1 as computer
     if op == "B":
@@ -285,19 +306,22 @@ def main():
         curr_player = AB
         print("You chose White.")
 
-    # TODO while game not done
     winner = comp.game_over(game.locations)
     while winner == -1:
-        if curr_player == 0:
+        if curr_player == HUMAN:
             game.make_move(HUMAN, game.get_user_input())
-
-            curr_player = 1
+            curr_player = AB
         else:
-            # make computer move
-            curr_player = 0
+            curr_player = HUMAN
+            #timer start
+            start_time = time.perf_counter()
             comp.find_best_move(game)
+            end_time = time.perf_counter()
+            print("AB took ", end_time - start_time)
+            # time end
         winner = comp.game_over(game.locations)
         game.print_board()
+    print("Game over. You have ", len(game.white_locations), "and Computer has ", len(game.black_locations))
     if (winner  == HUMAN):
         print("You won!")
     elif (winner == AB):
