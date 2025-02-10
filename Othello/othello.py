@@ -1,6 +1,8 @@
 import numpy as np
 import copy
 import time
+from math import log
+
 CHANGE = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]
 HUMAN = 0
 AB = 1
@@ -74,7 +76,12 @@ class Othello:
             
             print("Invalid move.")
             row = input("Row: ").strip()
+            if row.upper() == 'P':
+                return None
+        
             col = input("Column: ").strip()
+            if col.upper() == 'P':
+                return None
 
         return (int(row), int(col))
 
@@ -202,9 +209,18 @@ class AlphaBeta:
     def __init__(self, game, max_depth=3):
         self.max_depth = max_depth
         self.game = game
+        self.bad_spots = {(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6),
+                           (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6),
+                           (2, 1), (3, 1), (4, 1), (5, 1),
+                           (2, 6), (3, 6), (4, 6), (5, 6)}
+        self.good_spots = {(0, 0), (0, 7), (7, 0), (7, 7)}
+        self.okay_spots = {(0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6),
+                           (7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6),
+                           (2, 0), (3, 0), (4, 0), (5, 0),
+                           (2, 7), (3, 7), (4, 7), (5, 7)}
 
     def game_over(self, locations):
-        if len(locations[0]) + len(locations[1]) == 64:
+        if len(locations[0]) + len(locations[1]) == 64 or len(locations[0]) == 0 or len(locations[1]) == 0 or len(self.game.possible_moves(HUMAN, self.game.locations)) == 0 or len(self.game.possible_moves(AB, self.game.locations)) == 0:
             return HUMAN if len(locations[0]) > len(locations[1]) else AB        
         return -1
     # ***** Start of use of minimax algorithm with alpha-beta pruning *****
@@ -215,7 +231,7 @@ class AlphaBeta:
         best_score = -np.inf
         best_move = None
         for move in game.possible_moves(AB, locations_copy):
-            score = self.min_player(self.update_board(locations_copy, AB, move), best_score, np.inf, 1)
+            score = self.min_player(self.update_board(locations_copy, AB, move), best_score, np.inf, 1) + self.eval(move)
             print(move, score)
             if score > best_score:
                 best_score = score
@@ -223,6 +239,7 @@ class AlphaBeta:
         print("Best move:", best_move)
         game.make_move(AB, best_move)
 
+    # ALWAYS HUMAN
     def min_player(self, locations, alpha, beta, depth):
         winner = self.game_over(locations)
         if winner != -1:
@@ -231,22 +248,35 @@ class AlphaBeta:
         score = np.inf
         # need to fix this possible moves call because it won't work on the updated board 
         for move in self.game.possible_moves(HUMAN, locations): 
-            score = min(score, self.max_player(self.update_board(locations, HUMAN, move), alpha, beta, depth+1))
+            score = min(score, self.max_player(self.update_board(locations, HUMAN, move), alpha, beta, depth+1)) + self.eval(move)
             beta = min(beta, score)
             if score <= alpha: break
         return score
 
+    # ALWAYS AB
     def max_player(self, locations, alpha, beta, depth):
         winner = self.game_over(locations)
         if winner != -1:
-            return 100 if winner == HUMAN else -100        
+            return 100 if winner == AB else -100        
         elif depth == self.max_depth: return len(locations[1])
         score = -np.inf
         for move in self.game.possible_moves(AB, locations): 
-            score = max(score, self.max_player(self.update_board(locations, AB, move), alpha, beta, depth+1))
+            score = max(score, self.min_player(self.update_board(locations, AB, move), alpha, beta, depth+1)) + self.eval(move)
             alpha = max(alpha, score)
             if score >= beta: break
         return score
+    
+    def eval(self, move):
+        if move is None:
+            return 0
+        elif move in self.good_spots:
+            return 10
+        elif move in self.bad_spots:
+            return -10
+        elif move in self.okay_spots:
+            return 5
+        
+        return 0
     
     def update_board(self, locations, player, move_to_simulate): # Used to calculate the utility of a move
         locations_copy = copy.deepcopy(locations)
@@ -260,11 +290,11 @@ class AlphaBeta:
     
 def main():   
     
-    op = input("Choose colour, ’B’ for black, ’W’ for white: ").upper()
+    op = input("Choose colour, ’B’ for black, ’W’ for white: ").upper().strip()
 
     # Validate input as B or W
     while op not in "BW":
-        op = input("Choose colour, ’B’ for black, ’W’ for white: ").upper()
+        op = input("Choose colour, ’B’ for black, ’W’ for white: ").upper().strip()
     
     time_limit = input("Time limit in seconds: ")
     try:
@@ -274,20 +304,23 @@ def main():
 
     time_limit = float(time_limit)
     depth = 1
-    if time_limit <= 0.001:
+    if time_limit <= 0.005:
         depth = 1
     elif time_limit <= 0.01:
         depth = 2
     elif time_limit <= 0.1:
         depth = 3
-    elif time_limit <= 0.5:
-        depth = 4
     elif time_limit <= 1:
+        depth = 4
+    elif time_limit <= 5:
         depth = 5
-    elif time_limit <= 10:
-        depth = 6
     elif time_limit <= 30:
+        depth = 6
+    elif time_limit <= 300:
         depth = 7
+    else:
+        depth = 2 + int(log(time_limit))
+        
     print("DEPTH", depth)
     # Black always goes first
 
@@ -321,13 +354,15 @@ def main():
             # time end
         winner = comp.game_over(game.locations)
         game.print_board()
-    print("Game over. You have ", len(game.white_locations), "and Computer has ", len(game.black_locations))
     if (winner  == HUMAN):
         print("You won!")
     elif (winner == AB):
         print("Computer won!")
     else:
-        print("Tie!")     
+        print("Tie!")    
+
+    print("Game over. You have", len(game.locations[HUMAN]), "and Computer has", len(game.locations[AB]))
+ 
     
 
 if __name__ == '__main__': 
